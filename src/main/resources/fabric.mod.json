@@ -1,31 +1,31 @@
 {
   "schemaVersion": 1,
-  "id": "addon-template",
+  "id": "meteor-satellite-addon",
   "version": "${version}",
-  "name": "Addon Template",
-  "description": "An addon template for Meteor Client addons.",
+  "name": "Meteor Satellite Addon",
+  "description": "An addon that add various modules do Meteor Client.",
   "authors": [
-    "seasnail"
+    "crazycat256"
   ],
   "contact": {
-    "repo": "https://github.com/MeteorDevelopment/meteor-addon-template"
+    "repo": "https://github.com/crazycat256/meteor-satellite-addon"
   },
-  "icon": "assets/template/icon.png",
+  "icon": "assets/satellite/icon.png",
   "environment": "client",
   "entrypoints": {
     "meteor": [
-      "com.example.addon.AddonTemplate"
+      "fr.crazycat256.satellite.Addon"
     ]
   },
   "mixins": [
-    "addon-template.mixins.json"
+    "satellite.mixins.json"
   ],
   "custom": {
-    "meteor-client:color": "225,25,25"
+    "meteor-client:color": "230,211,74"
   },
   "depends": {
     "java": ">=21",
-    "minecraft": ["${mc_version}"],
+    "minecraft": [">=1.21"],
     "meteor-client": "*"
   }
 }

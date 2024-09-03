@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="Meteor Satellite Addon Copyright notice" pattern="src[meteor-satellite-addon.main]:fr.crazycat256..*" />
+</component>

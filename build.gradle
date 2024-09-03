@@ -1,5 +1,6 @@
 plugins {
     id "fabric-loom" version "1.7-SNAPSHOT"
+    id "com.github.johnrengelman.shadow" version "8.1.1"
 }
 
 base {
@@ -19,6 +20,12 @@ repositories {
     }
 }
 
+configurations {
+    // include libraries
+    implementation.extendsFrom(library)
+    shadow.extendsFrom(library)
+}
+
 dependencies {
     // Fabric
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -27,6 +34,9 @@ dependencies {
 
     // Meteor
     modImplementation "meteordevelopment:meteor-client:${project.meteor_version}"
+
+    // Library
+    library 'org.java-websocket:Java-WebSocket:1.5.7'
 }
 
 tasks {
@@ -50,6 +60,25 @@ tasks {
     java {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    shadowJar {
+        configurations = [project.configurations.shadow]
+
+        from("LICENSE") {
+            rename { "${it}_${project.base.archivesBaseName}" }
+        }
+
+        dependencies {
+            exclude {
+                it.moduleGroup == "org.slf4j"
+            }
+        }
+    }
+
+    remapJar {
+        dependsOn shadowJar
+        inputFile.set(shadowJar.archiveFile)
     }
 
     tasks.withType(JavaCompile).configureEach {
