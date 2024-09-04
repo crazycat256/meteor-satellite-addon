@@ -121,12 +121,15 @@ public class SeedMap extends Module {
     }
 
     public void close() {
-        try {
-            if (webSocket != null) {
+        if (webSocket != null) {
+            webSocket.closeAll();
+            try {
                 webSocket.stop();
-                webSocket = null;
+            } catch (InterruptedException e) {
+                // Empty catch block
             }
-        } catch (Exception ignored) {}
+            webSocket = null;
+        }
     }
 
     @EventHandler

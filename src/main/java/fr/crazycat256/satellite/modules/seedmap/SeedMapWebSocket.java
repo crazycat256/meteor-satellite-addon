@@ -5,6 +5,7 @@
 
 package fr.crazycat256.satellite.modules.seedmap;
 
+import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
@@ -25,6 +26,7 @@ public class SeedMapWebSocket extends WebSocketServer {
         super(new InetSocketAddress(port));
         this.onlyLocal = onlyLocal;
         this.debugMessages = debugMessages;
+        setReuseAddr(true);
     }
 
     public boolean getOnlyLocal() {
@@ -52,6 +54,10 @@ public class SeedMapWebSocket extends WebSocketServer {
 
     @Override
     public void onOpen(WebSocket conn, ClientHandshake handshake) {
+        if (!Modules.get().get(SeedMap.class).isActive()) {
+            conn.close();
+            return;
+        }
         if (onlyLocal && !getAddr(conn).equals("localhost")) {
             conn.close();
             return;
@@ -82,7 +88,7 @@ public class SeedMapWebSocket extends WebSocketServer {
 
     @Override
     public void onStart() {
-        setConnectionLostTimeout(100);
+        setConnectionLostTimeout(5);
     }
 
     public static String getAddr(WebSocket conn) {
@@ -90,6 +96,13 @@ public class SeedMapWebSocket extends WebSocketServer {
         if (addr.equals("0:0:0:0:0:0:0:1") || addr.equals("127.0.0.1"))
             addr = "localhost";
         return addr;
+    }
+
+    public void closeAll() {
+        for (WebSocket conn : connections) {
+            conn.close();
+        }
+        connections.clear();
     }
 }
 
