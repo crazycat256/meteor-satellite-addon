@@ -9,8 +9,8 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import fr.crazycat256.satellite.utils.TPUtils;
 import meteordevelopment.meteorclient.commands.Command;
 import meteordevelopment.meteorclient.commands.arguments.PlayerArgumentType;
-import net.minecraft.command.CommandSource;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.client.multiplayer.ClientSuggestionProvider;
+import net.minecraft.world.entity.player.Player;
 
 public class TPCommand extends Command {
     public TPCommand() {
@@ -18,12 +18,12 @@ public class TPCommand extends Command {
     }
 
     @Override
-    public void build(LiteralArgumentBuilder<CommandSource> builder) {
+    public void build(LiteralArgumentBuilder<ClientSuggestionProvider> builder) {
 
         builder.then(argument("player", PlayerArgumentType.create())
             .executes(ctx -> {
 
-                PlayerEntity player = PlayerArgumentType.get(ctx);
+                Player player = PlayerArgumentType.get(ctx);
 
                 if (player == mc.player) {
                     error("You can't teleport to yourself.");
@@ -33,8 +33,8 @@ public class TPCommand extends Command {
                     return 0;
                 }
 
-                TPUtils.PaperTP(player.getEntityPos());
-                mc.player.updatePosition(player.getX(), player.getY(), player.getZ());
+                TPUtils.PaperTP(player.position());
+                mc.player.setPos(player.getX(), player.getY(), player.getZ());
 
                 return SINGLE_SUCCESS;
         }));

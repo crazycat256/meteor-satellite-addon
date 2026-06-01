@@ -34,3 +34,8 @@ bin/
 # fabric
 
 run/
+
+# local porting scratch
+.jdk/
+.meteor-sources/
+meteor-client-*-sources.jar

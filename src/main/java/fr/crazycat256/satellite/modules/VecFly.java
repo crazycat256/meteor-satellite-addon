@@ -8,13 +8,13 @@ package fr.crazycat256.satellite.modules;
 import fr.crazycat256.satellite.Addon;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.mixin.PlayerMoveC2SPacketAccessor;
+import meteordevelopment.meteorclient.mixin.ServerboundMovePlayerPacketAccessor;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 
 
 /**
@@ -75,81 +75,81 @@ public class VecFly extends Module {
 
     private int ticks = 0;
     private boolean bypassLastTick = false;
-    private Vec3d lastForward = Vec3d.ZERO;
+    private Vec3 lastForward = Vec3.ZERO;
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
 
-        Vec3d dir = Vec3d.fromPolar(0, mc.player.getYaw()).normalize();
+        Vec3 dir = Vec3.directionFromRotation(0, mc.player.getYRot()).normalize();
 
         double x = 0;
         double y = 0;
         double z = 0;
 
-        if (mc.options.forwardKey.isPressed()) {
+        if (mc.options.keyUp.isDown()) {
             x += dir.x;
             z += dir.z;
         }
-        if (mc.options.backKey.isPressed()) {
+        if (mc.options.keyDown.isDown()) {
             x += -dir.x;
             z += -dir.z;
         }
-        if (mc.options.rightKey.isPressed()) {
+        if (mc.options.keyRight.isDown()) {
             x += -dir.z;
             z += dir.x;
         }
-        if (mc.options.leftKey.isPressed()) {
+        if (mc.options.keyLeft.isDown()) {
             x += dir.z;
             z += -dir.x;
         }
-        if (mc.options.jumpKey.isPressed()) {
+        if (mc.options.keyJump.isDown()) {
             y += yWeight.get();
         }
-        if (mc.options.sneakKey.isPressed()) {
+        if (mc.options.keyShift.isDown()) {
             y -= yWeight.get();
         }
 
-        Vec3d forward;
+        Vec3 forward;
         if (x != 0 || y != 0 || z != 0) {
-            forward = new Vec3d(x, y, z).normalize().multiply(flySpeed.get());
+            forward = new Vec3(x, y, z).normalize().scale(flySpeed.get());
         } else {
-            forward = new Vec3d(0, 0, 0);
+            forward = new Vec3(0, 0, 0);
         }
 
-        BlockPos stepDownPos = mc.player.getBlockPos().down();
-        boolean sprinting = mc.options.sprintKey.isPressed() && !mc.options.jumpKey.isPressed() && speedBypassMode.get() != SpeedBypassMode.None;
-        if (sprinting != bypassLastTick && !mc.player.isOnGround() && !mc.world.getBlockState(stepDownPos).isSolidBlock(mc.world, stepDownPos)) {
-            mc.player.updatePosition(mc.player.getX(), stepDownPos.getY(), mc.player.getZ());
+        BlockPos stepDownPos = mc.player.blockPosition().below();
+        boolean sprinting = mc.options.keySprint.isDown() && !mc.options.keyJump.isDown() && speedBypassMode.get() != SpeedBypassMode.None;
+        if (sprinting != bypassLastTick && !mc.player.onGround() && !mc.level.getBlockState(stepDownPos).isSolidRender()) {
+            mc.player.setPos(mc.player.getX(), stepDownPos.getY(), mc.player.getZ());
         }
         bypassLastTick = sprinting;
-        mc.player.setVelocity(forward);
+        mc.player.setDeltaMovement(forward);
 
-        Vec3d tempLastForward = lastForward;
+        Vec3 tempLastForward = lastForward;
         lastForward = forward;
 
         if (speedBypassMode.get() == SpeedBypassMode.None) return;
-        if (speedBypassMode.get() == SpeedBypassMode.OnSprint && !mc.options.sprintKey.isPressed()) return;
-        if (forward.equals(Vec3d.ZERO) && tempLastForward.equals(Vec3d.ZERO)) return;
-        if (mc.options.jumpKey.isPressed()) return;
+        if (speedBypassMode.get() == SpeedBypassMode.OnSprint && !mc.options.keySprint.isDown()) return;
+        if (forward.equals(Vec3.ZERO) && tempLastForward.equals(Vec3.ZERO)) return;
+        if (mc.options.keyJump.isDown()) return;
 
 
-        if (!mc.world.getBlockState(stepDownPos).isSolidBlock(mc.world, stepDownPos)) {
-            forward = forward.multiply(speedBypassMultiplier.get());
+        if (!mc.level.getBlockState(stepDownPos).isSolidRender()) {
+            forward = forward.scale(speedBypassMultiplier.get());
             if (++ticks >= stepDownDelay.get()) {
-                mc.player.updatePosition(mc.player.getX(), stepDownPos.getY(), mc.player.getZ());
+                mc.player.setPos(mc.player.getX(), stepDownPos.getY(), mc.player.getZ());
                 ticks = 0;
             }
         }
-        mc.player.setVelocity(forward);
+        mc.player.setDeltaMovement(forward);
 
     }
 
     @EventHandler
     private void onPacketSend(PacketEvent.Send event) {
-        if (event.packet instanceof PlayerMoveC2SPacket packet) {
+        if (event.packet instanceof ServerboundMovePlayerPacket packet) {
             if (!packet.isOnGround()) {
-                ((PlayerMoveC2SPacketAccessor) packet).meteor$setOnGround(true);
+                ((ServerboundMovePlayerPacketAccessor) packet).meteor$setOnGround(true);
             }
         }
     }

@@ -16,8 +16,8 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.world.phys.Vec3;
 
 public class Phase extends Module {
 
@@ -28,7 +28,7 @@ public class Phase extends Module {
         .description("The mode of the phase.")
         .defaultValue(Mode.TP)
         .onChanged(v -> {
-            if (isActive()) startPos = mc.player.getEntityPos();
+            if (isActive()) startPos = mc.player.position();
         })
         .build()
     );
@@ -51,7 +51,7 @@ public class Phase extends Module {
         .build()
     );
 
-    private Vec3d startPos;
+    private Vec3 startPos;
 
     public Phase() {
         super(Addon.CATEGORY, "Phase", "Allows you to fly trough blocks.");
@@ -59,14 +59,14 @@ public class Phase extends Module {
 
     @Override
     public void onActivate() {
-        startPos = mc.player.getEntityPos();
+        startPos = mc.player.position();
     }
 
 
     @Override
     public void onDeactivate() {
         if (mc.player != null && mode.get() == Mode.TP) {
-            TPUtils.PaperTP(startPos, mc.player.getEntityPos());
+            TPUtils.PaperTP(startPos, mc.player.position());
         }
     }
 
@@ -74,9 +74,9 @@ public class Phase extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.getCameraEntity() == null) return;
 
-        double forwardX = mc.player.getRotationVector().x;
-        double forwardZ = mc.player.getRotationVector().z;
-        Vec3d forward = new Vec3d(forwardX, 0, forwardZ).normalize();
+        double forwardX = mc.player.getLookAngle().x;
+        double forwardZ = mc.player.getLookAngle().z;
+        Vec3 forward = new Vec3(forwardX, 0, forwardZ).normalize();
 
         double x = 0;
         double y = 0;
@@ -85,38 +85,38 @@ public class Phase extends Module {
         double hs = horizontalSpeed.get() / 10;
         double vs = verticalSpeed.get() / 10;
 
-        if (mc.options.sprintKey.isPressed()) {
+        if (mc.options.keySprint.isDown()) {
             hs *= 3;
             vs *= 3;
         }
 
-        if (mc.options.forwardKey.isPressed()) {
+        if (mc.options.keyUp.isDown()) {
             x += forward.x * hs;
             z += forward.z * hs;
         }
-        if (mc.options.backKey.isPressed()) {
+        if (mc.options.keyDown.isDown()) {
             x -= forward.x * hs;
             z -= forward.z * hs;
 
         }
-        if (mc.options.leftKey.isPressed()) {
+        if (mc.options.keyLeft.isDown()) {
             x += forward.z * hs;
             z -= forward.x * hs;
         }
-        if (mc.options.rightKey.isPressed()) {
+        if (mc.options.keyRight.isDown()) {
             x -= forward.z * hs;
             z += forward.x * hs;
 
         }
-        if (mc.options.jumpKey.isPressed()) {
+        if (mc.options.keyJump.isDown()) {
             y += vs;
         }
-        if (mc.options.sneakKey.isPressed()) {
+        if (mc.options.keyShift.isDown()) {
             y -= vs;
-            mc.player.setSneaking(false);
+            mc.player.setShiftKeyDown(false);
         }
 
-        mc.player.setVelocity(x, y, z);
+        mc.player.setDeltaMovement(x, y, z);
 
     }
 
@@ -124,7 +124,7 @@ public class Phase extends Module {
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
         if (mc.player == null) return;
-        if (event.packet instanceof PlayerMoveC2SPacket && mode.get() == Mode.TP) {
+        if (event.packet instanceof ServerboundMovePlayerPacket && mode.get() == Mode.TP) {
             event.cancel();
         }
     }

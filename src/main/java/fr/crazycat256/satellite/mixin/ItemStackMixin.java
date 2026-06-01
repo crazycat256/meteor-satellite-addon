@@ -7,11 +7,11 @@ package fr.crazycat256.satellite.mixin;
 
 import fr.crazycat256.satellite.modules.NBTTooltip;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.tooltip.TooltipType;
-import net.minecraft.text.Text;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -22,13 +22,13 @@ import java.util.List;
 
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin {
-    @Inject(method = "getTooltip", at = @At(value = "RETURN", ordinal = 1))
-    private void getTooltip(Item.TooltipContext tooltipContext, @Nullable PlayerEntity entity, TooltipType tooltipType, CallbackInfoReturnable<List<Text>> info) {
+    @Inject(method = "getTooltipLines", at = @At("RETURN"))
+    private void getTooltip(Item.TooltipContext tooltipContext, @Nullable Player entity, TooltipFlag tooltipType, CallbackInfoReturnable<List<Component>> info) {
         String nbtStr = Modules.get().get(NBTTooltip.class).getTooltip((ItemStack) (Object) this, tooltipContext);
         if (nbtStr != null) {
-            List<Text> tooltip = info.getReturnValue();
+            List<Component> tooltip = info.getReturnValue();
             for (String line : nbtStr.split("\n")) {
-                tooltip.add(Text.literal(line));
+                tooltip.add(Component.literal(line));
             }
         }
     }

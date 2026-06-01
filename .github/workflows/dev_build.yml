@@ -1,1 +1,86 @@
-name: Publish Development Buildon: pushpermissions:  contents: writejobs:  build:    runs-on: ubuntu-latest    steps:      - name: Checkout Repository        uses: actions/checkout@v4        with:          fetch-depth: 0      - name: Wrapper Validation        uses: gradle/actions/wrapper-validation@v3      - name: Set up Java        uses: actions/setup-java@v4        with:          java-version: 21          distribution: adopt      - name: Install jq        run: sudo apt-get install -y jq      - name: Extract Minecraft Version        id: mc_version        run: |          MC_VERSION=$(sed -nE 's/^[[:space:]]*minecraft[[:space:]]*=[[:space:]]*"(.*)".*/\1/p' gradle/libs.versions.toml | head -n1)          if [ -z "$MC_VERSION" ]; then            echo "Error: Could not determine Minecraft version from gradle/libs.versions.toml" >&2            exit 1          fi          echo "minecraft_version=$MC_VERSION" >> $GITHUB_OUTPUT          echo "Minecraft version: $MC_VERSION"      - name: Find Next Build Version        id: find_build_version        run: |          TAGS=$(curl -s "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" | jq -r '.[].tag_name')          echo "Tags: $TAGS"          MATCHING=$(echo "$TAGS" | grep -E "^${{ steps.mc_version.outputs.minecraft_version }}-[0-9]+$" || true)          echo "Matching tags: $MATCHING"          if [ -z "$MATCHING" ]; then            BUILD_VERSION=1          else            LAST_BUILD=$(echo "$MATCHING" | awk -F- '{print $NF}' | grep -E '^[0-9]+$' | sort -nr | head -n1 || true)            if ! echo "$LAST_BUILD" | grep -qE '^[0-9]+$'; then              echo "Error: found matching tag(s) but no integer build suffix. Matching: $MATCHING"              exit 1            fi            BUILD_VERSION=$((LAST_BUILD + 1))          fi          echo "build_version=$BUILD_VERSION" >> $GITHUB_OUTPUT          echo "Build version: $BUILD_VERSION"      - name: Build with Gradle        run: ./gradlew build -PbuildNumber=${{ steps.find_build_version.outputs.build_version }}      - name: Set Artifact Output        id: artifact        run: |          set -euo pipefail          echo "Contents of build/libs:"          ls -la build/libs || true          # Find the first matching artifact. Accept -all.jar or plain .jar using a glob.          artifact=$(ls build/libs/meteor-satellite-addon-${{ steps.mc_version.outputs.minecraft_version }}-${{ steps.find_build_version.outputs.build_version }}.jar 2>/dev/null | head -n1 || true)          if [ -z "$artifact" ]; then            # Artifact not found, fail early            echo "Error: Built artifact not found!" >&2            echo "Expected at: build/libs/meteor-satellite-addon-${{ steps.mc_version.outputs.minecraft_version }}-${{ steps.find_build_version.outputs.build_version }}.jar" >&2            exit 1          fi          echo "artifact=$artifact" >> $GITHUB_OUTPUT      - name: Release        uses: softprops/action-gh-release@v2        with:          token: ${{ secrets.GITHUB_TOKEN }}          tag_name: ${{ steps.mc_version.outputs.minecraft_version }}-${{ steps.find_build_version.outputs.build_version }}          name: Build ${{ steps.mc_version.outputs.minecraft_version }}-${{ steps.find_build_version.outputs.build_version }}          prerelease: false          files: |            ${{ steps.artifact.outputs.artifact }}
+name: Publish Development Build
+on: push
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Wrapper Validation
+        uses: gradle/actions/wrapper-validation@v3
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 25
+          distribution: adopt
+      - name: Install jq
+        run: sudo apt-get install -y jq
+      - name: Extract Minecraft Version
+        id: mc_version
+        run: |
+          MC_VERSION=$(sed -nE 's/^[[:space:]]*minecraft[[:space:]]*=[[:space:]]*"(.*)".*/\1/p' gradle/libs.versions.toml | head -n1)
+
+          if [ -z "$MC_VERSION" ]; then
+            echo "Error: Could not determine Minecraft version from gradle/libs.versions.toml" >&2
+            exit 1
+          fi
+
+          echo "minecraft_version=$MC_VERSION" >> $GITHUB_OUTPUT
+          echo "Minecraft version: $MC_VERSION"
+      - name: Find Next Build Version
+        id: find_build_version
+        run: |
+          TAGS=$(curl -s "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" | jq -r '.[].tag_name')
+          echo "Tags: $TAGS"
+
+          MATCHING=$(echo "$TAGS" | grep -E "^${{ steps.mc_version.outputs.minecraft_version }}-[0-9]+$" || true)
+          echo "Matching tags: $MATCHING"
+
+          if [ -z "$MATCHING" ]; then
+            BUILD_VERSION=1
+          else
+            LAST_BUILD=$(echo "$MATCHING" | awk -F- '{print $NF}' | grep -E '^[0-9]+$' | sort -nr | head -n1 || true)
+            if ! echo "$LAST_BUILD" | grep -qE '^[0-9]+$'; then
+              echo "Error: found matching tag(s) but no integer build suffix. Matching: $MATCHING"
+              exit 1
+            fi
+            BUILD_VERSION=$((LAST_BUILD + 1))
+          fi
+
+          echo "build_version=$BUILD_VERSION" >> $GITHUB_OUTPUT
+          echo "Build version: $BUILD_VERSION"
+      - name: Build with Gradle
+        run: ./gradlew build -PbuildNumber=${{ steps.find_build_version.outputs.build_version }}
+      - name: Set Artifact Output
+        id: artifact
+        run: |
+          set -euo pipefail
+          echo "Contents of build/libs:"
+          ls -la build/libs || true
+
+          # Find the first matching artifact. Accept -all.jar or plain .jar using a glob.
+          artifact=$(ls build/libs/meteor-satellite-addon-${{ steps.mc_version.outputs.minecraft_version }}-${{ steps.find_build_version.outputs.build_version }}.jar 2>/dev/null | head -n1 || true)
+
+          if [ -z "$artifact" ]; then
+            # Artifact not found, fail early
+            echo "Error: Built artifact not found!" >&2
+            echo "Expected at: build/libs/meteor-satellite-addon-${{ steps.mc_version.outputs.minecraft_version }}-${{ steps.find_build_version.outputs.build_version }}.jar" >&2
+            exit 1
+          fi
+
+          echo "artifact=$artifact" >> $GITHUB_OUTPUT
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ steps.mc_version.outputs.minecraft_version }}-${{ steps.find_build_version.outputs.build_version }}
+          name: Build ${{ steps.mc_version.outputs.minecraft_version }}-${{ steps.find_build_version.outputs.build_version }}
+          prerelease: false
+          files: |
+            ${{ steps.artifact.outputs.artifact }}

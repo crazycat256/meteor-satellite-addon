@@ -18,14 +18,14 @@ public class NBTUtils {
      * @param colors Whether to colorize the output
      * @return The formatted NBT tag compound
      */
-    public static String formatNBT(NbtCompound compound, int indentationLevel, boolean colors) {
+    public static String formatNBT(CompoundTag compound, int indentationLevel, boolean colors) {
         return formatNBT(compound, indentationLevel, indentationLevel, colors);
     }
 
     /**
-     * Recursive function used in {@link #formatNBT(NbtCompound, int, boolean)}
+     * Recursive function used in {@link #formatNBT(CompoundTag, int, boolean)}
      */
-    public static String formatNBT(NbtCompound compound, int currentIndentation, int indentationLevel, boolean colors) {
+    public static String formatNBT(CompoundTag compound, int currentIndentation, int indentationLevel, boolean colors) {
         String keyColor = "\u00a7b";
         String bracketColor = "\u00a7f";
         String resetColor = "\u00a7r";
@@ -38,8 +38,8 @@ public class NBTUtils {
 
         String indentation = Strings.repeat(" ", currentIndentation);
 
-        for (String key : compound.getKeys()) {
-            NbtElement tag = compound.get(key);
+        for (String key : compound.keySet()) {
+            Tag tag = compound.get(key);
             result.append("\n").append(indentation).append(keyColor).append(key).append(resetColor).append(": ");
 
             handleTag(currentIndentation, indentationLevel, colors, result, tag);
@@ -58,7 +58,7 @@ public class NBTUtils {
             }
             break;
         }
-        if (!compound.getKeys().isEmpty()) {
+        if (!compound.keySet().isEmpty()) {
             result.append("\n").append(Strings.repeat(" ", Math.max(0, currentIndentation - indentationLevel)));
         }
         result.append(bracketColor).append("}").append(resetColor);
@@ -66,11 +66,11 @@ public class NBTUtils {
         return result.toString();
     }
 
-    private static void handleTag(int currentIndentation, int indentationLevel, boolean colors, StringBuilder result, NbtElement tag) {
-        if (tag instanceof NbtCompound) {
-            result.append(formatNBT((NbtCompound) tag, currentIndentation + indentationLevel, indentationLevel, colors));
-        } else if (tag instanceof NbtList) {
-            result.append(formatNBT((NbtList) tag, currentIndentation + indentationLevel, indentationLevel, colors));
+    private static void handleTag(int currentIndentation, int indentationLevel, boolean colors, StringBuilder result, Tag tag) {
+        if (tag instanceof CompoundTag) {
+            result.append(formatNBT((CompoundTag) tag, currentIndentation + indentationLevel, indentationLevel, colors));
+        } else if (tag instanceof ListTag) {
+            result.append(formatNBT((ListTag) tag, currentIndentation + indentationLevel, indentationLevel, colors));
         } else {
             result.append(colors ? colorTag(tag) : tag.toString());
         }
@@ -79,9 +79,9 @@ public class NBTUtils {
     }
 
     /**
-     * Recursive function used in {@link #formatNBT(NbtCompound, int, boolean)}
+     * Recursive function used in {@link #formatNBT(CompoundTag, int, boolean)}
      */
-    public static String formatNBT(NbtList list, int currentIndentation, int indentationLevel, boolean colors) {
+    public static String formatNBT(ListTag list, int currentIndentation, int indentationLevel, boolean colors) {
         String bracketColor = "\u00a7f";
         String resetColor = "\u00a7r";
         if (!colors) {
@@ -92,7 +92,7 @@ public class NBTUtils {
 
         String indentation = Strings.repeat(" ", currentIndentation);
 
-        for (NbtElement tag : list) {
+        for (Tag tag : list) {
             result.append("\n").append(indentation);
 
             handleTag(currentIndentation, indentationLevel, colors, result, tag);
@@ -116,17 +116,17 @@ public class NBTUtils {
      * @return The colorized NBT tag
      */
     @SuppressWarnings("unused")
-    public static String colorTag(NbtElement tag) {
+    public static String colorTag(Tag tag) {
         return switch (tag) {
-            case NbtByte      n -> color(tag, '2');
-            case NbtShort     n -> color(tag, '2');
-            case NbtInt       n -> color(tag, '2');
-            case NbtLong      n -> color(tag, '2');
-            case NbtFloat     n -> color(tag, '2');
-            case NbtDouble    n -> color(tag, '2');
-            case NbtByteArray n -> color(tag, '9');
-            case NbtIntArray  n -> color(tag, '9');
-            case NbtString    n -> color(tag, '6');
+            case ByteTag      n -> color(tag, '2');
+            case ShortTag     n -> color(tag, '2');
+            case IntTag       n -> color(tag, '2');
+            case LongTag      n -> color(tag, '2');
+            case FloatTag     n -> color(tag, '2');
+            case DoubleTag    n -> color(tag, '2');
+            case ByteArrayTag n -> color(tag, '9');
+            case IntArrayTag  n -> color(tag, '9');
+            case StringTag    n -> color(tag, '6');
             default             -> color(tag, 'f');
         };
     }

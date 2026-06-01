@@ -17,19 +17,20 @@ import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.ItemEntity;
-import net.minecraft.entity.decoration.ItemFrameEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemFrameItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.text.Text;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.decoration.ItemFrame;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemFrameItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 
 import java.text.SimpleDateFormat;
@@ -159,10 +160,10 @@ public class AutoFrameDupe extends Module {
         .build()
     );
 
-    private final List<ItemFrameEntity> reachableItemFrames = new ArrayList<>();
-    private final List<ItemFrameEntity> toReplace = new ArrayList<>();
+    private final List<ItemFrame> reachableItemFrames = new ArrayList<>();
+    private final List<ItemFrame> toReplace = new ArrayList<>();
 
-    private final List<ItemFrameEntity> dontHit = new ArrayList<>();
+    private final List<ItemFrame> dontHit = new ArrayList<>();
 
 
     private final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
@@ -189,70 +190,70 @@ public class AutoFrameDupe extends Module {
             info("Stopped at §f" + sdf.format(stopTime));
             info("Duration: §f" + DurationFormatUtils.formatDurationWords(stopTime - startTime, true, true));
         }
-        if (mc.player == null || mc.world == null || mc.interactionManager == null) return;
+        if (mc.player == null || mc.level == null || mc.gameMode == null) return;
         MeteorExecutor.execute(() -> {
             try {Thread.sleep(100);} catch (InterruptedException ignored) {}
 
-            List<ItemFrameEntity> itemFrames = new ArrayList<>();
-            PlayerInventory inv = mc.player.getInventory();
+            List<ItemFrame> itemFrames = new ArrayList<>();
+            Inventory inv = mc.player.getInventory();
 
 
-            for (Entity entity: mc.world.getEntities()) {
-                if (entity instanceof ItemFrameEntity itemFrame) {
-                    if (entity.squaredDistanceTo(mc.player) < 25) {
-                        if (dupeItems.get().contains(itemFrame.getHeldItemStack().getItem()))
-                            mc.interactionManager.attackEntity(mc.player, itemFrame);
+            for (Entity entity: mc.level.entitiesForRendering()) {
+                if (entity instanceof ItemFrame itemFrame) {
+                    if (entity.distanceToSqr(mc.player) < 25) {
+                        if (dupeItems.get().contains(itemFrame.getItem().getItem()))
+                            mc.gameMode.attack(mc.player, itemFrame);
                         itemFrames.add(itemFrame);
                     }
                 }
             }
 
             if (mode.get() == Mode.Fast && replaceItemFrames.get()) {
-                for (ItemFrameEntity itemFrame : reachableItemFrames) {
-                    if (itemFrame.squaredDistanceTo(mc.player) < 25 && !itemFrames.contains(itemFrame))
+                for (ItemFrame itemFrame : reachableItemFrames) {
+                    if (itemFrame.distanceToSqr(mc.player) < 25 && !itemFrames.contains(itemFrame))
                         toReplace.add(itemFrame);
                 }
 
                 replaceLoop:
-                for (ItemFrameEntity itemFrame : toReplace) {
+                for (ItemFrame itemFrame : toReplace) {
 
-                    for (ItemFrameEntity existingItemFrame : itemFrames) {
-                        if (existingItemFrame.getEntityPos().equals(itemFrame.getEntityPos()) && existingItemFrame.getHorizontalFacing() == itemFrame.getHorizontalFacing()) {
+                    for (ItemFrame existingItemFrame : itemFrames) {
+                        if (existingItemFrame.position().equals(itemFrame.position()) && existingItemFrame.getDirection() == itemFrame.getDirection()) {
                             continue replaceLoop;
                         }
                     }
 
-                    BlockPos pos = TPUtils.Vec3d2BlockPos(itemFrame.getEntityPos().subtract(itemFrame.getRotationVector().normalize()));
-                    if (inv.getStack(PlayerInventory.OFF_HAND_SLOT).getItem() instanceof ItemFrameItem) {
-                        mc.interactionManager.interactBlock(mc.player, Hand.OFF_HAND, new BlockHitResult(Vec3d.ofCenter(pos), itemFrame.getHorizontalFacing(), pos, false));
+                    BlockPos pos = TPUtils.vec3ToBlockPos(itemFrame.position().subtract(itemFrame.getLookAngle().normalize()));
+                    if (inv.getItem(Inventory.SLOT_OFFHAND).getItem() instanceof ItemFrameItem) {
+                        mc.gameMode.useItemOn(mc.player, InteractionHand.OFF_HAND, new BlockHitResult(Vec3.atCenterOf(pos), itemFrame.getDirection(), pos, false));
                         continue;
                     }
 
                     boolean swapped = false;
-                    if (!(inv.getSelectedStack().getItem() instanceof ItemFrameItem)) {
+                    if (!(inv.getSelectedItem().getItem() instanceof ItemFrameItem)) {
                         for (int i = 0; i < 9; i++) {
-                            if (inv.getStack(i).getItem() instanceof ItemFrameItem) {
+                            if (inv.getItem(i).getItem() instanceof ItemFrameItem) {
                                 InvUtils.swap(i, false);
                                 swapped = true;
                                 break;
                             }
                         }
                     }
-                    if (!(inv.getSelectedStack().getItem() instanceof ItemFrameItem) && !swapped) {
-                        for (int i = 0; i < inv.size(); i++) {
-                            if (inv.getStack(i).getItem() instanceof ItemFrameItem) {
+                    if (!(inv.getSelectedItem().getItem() instanceof ItemFrameItem) && !swapped) {
+                        for (int i = 0; i < inv.getContainerSize(); i++) {
+                            if (inv.getItem(i).getItem() instanceof ItemFrameItem) {
                                 InvUtils.move().from(i).toHotbar(inv.getSelectedSlot());
                                 break;
                             }
                         }
                     }
 
-                    if (inv.getSelectedStack().getItem() instanceof ItemFrameItem) {
-                        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, new BlockHitResult(Vec3d.ofCenter(pos), itemFrame.getHorizontalFacing(), pos, false));
-                        ItemStack stack = mc.player.getStackInHand(Hand.MAIN_HAND).copy();
+                    if (inv.getSelectedItem().getItem() instanceof ItemFrameItem) {
+                        mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, new BlockHitResult(Vec3.atCenterOf(pos), itemFrame.getDirection(), pos, false));
+                        ItemStack stack = mc.player.getItemInHand(InteractionHand.MAIN_HAND).copy();
                         stack.setCount(stack.getCount() - 1);
                         if (stack.getCount() == 0) stack = ItemStack.EMPTY;
-                        mc.player.setStackInHand(Hand.MAIN_HAND, stack);
+                        mc.player.setItemInHand(InteractionHand.MAIN_HAND, stack);
                     }
                 }
             }
@@ -261,27 +262,27 @@ public class AutoFrameDupe extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null || mc.interactionManager == null) return;
+        if (mc.player == null || mc.level == null || mc.gameMode == null) return;
 
         if (chronometer.get()) {
-            mc.inGameHud.setOverlayMessage(Text.of("Duration: §f" + DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime, true, true)), false);
+            mc.gui.setOverlayMessage(Component.literal("Duration: §f" + DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime, true, true)), false);
         }
 
-        PlayerInventory inv = mc.player.getInventory();
+        Inventory inv = mc.player.getInventory();
 
         if (autoDisable.get()) {
             int count = 0;
             for (Item item : dupeItems.get()) {
-                count += inv.count(item);
+                count += countInventoryItem(inv, item);
             }
-            for (Entity entity : mc.world.getEntities()) {
-                if (entity instanceof ItemEntity item && entity.squaredDistanceTo(mc.player) < 49) {
-                    if (dupeItems.get().contains(item.getStack().getItem())) {
-                        count += item.getStack().getCount();
+            for (Entity entity : mc.level.entitiesForRendering()) {
+                if (entity instanceof ItemEntity item && entity.distanceToSqr(mc.player) < 49) {
+                    if (dupeItems.get().contains(item.getItem().getItem())) {
+                        count += item.getItem().getCount();
                     }
                 }
-                if (entity instanceof ItemFrameEntity itemFrame && entity.squaredDistanceTo(mc.player) < 25) {
-                    if (dupeItems.get().contains(itemFrame.getHeldItemStack().getItem())) {
+                if (entity instanceof ItemFrame itemFrame && entity.distanceToSqr(mc.player) < 25) {
+                    if (dupeItems.get().contains(itemFrame.getItem().getItem())) {
                         count++;
                     }
                 }
@@ -295,14 +296,14 @@ public class AutoFrameDupe extends Module {
 
         if (mode.get() == Mode.Normal) {
 
-            List<ItemFrameEntity> emptyItemFrames = new ArrayList<>();
-            List<ItemFrameEntity> filledItemFrames = new ArrayList<>();
+            List<ItemFrame> emptyItemFrames = new ArrayList<>();
+            List<ItemFrame> filledItemFrames = new ArrayList<>();
 
-            for (Entity entity : mc.world.getEntities()) {
-                if (entity instanceof ItemFrameEntity itemFrame) {
-                    if (itemFrame.getHeldItemStack().getItem() == Items.AIR) {
+            for (Entity entity : mc.level.entitiesForRendering()) {
+                if (entity instanceof ItemFrame itemFrame) {
+                    if (itemFrame.getItem().getItem() == Items.AIR) {
                         emptyItemFrames.add(itemFrame);
-                    } else if (dupeItems.get().contains(itemFrame.getHeldItemStack().getItem())) {
+                    } else if (dupeItems.get().contains(itemFrame.getItem().getItem())) {
                         filledItemFrames.add(itemFrame);
                     }
                 }
@@ -312,10 +313,10 @@ public class AutoFrameDupe extends Module {
             int swaps = 0;
             int moves = 0;
             boolean swapped = false;
-            for (ItemFrameEntity emptyItemFrame: emptyItemFrames) {
-                if (!dupeItems.get().contains(inv.getSelectedStack().getItem()) && swaps < maxSwaps.get()) {
+            for (ItemFrame emptyItemFrame: emptyItemFrames) {
+                if (!dupeItems.get().contains(inv.getSelectedItem().getItem()) && swaps < maxSwaps.get()) {
                     for (int i = 0; i < 9; i++) {
-                        if (dupeItems.get().contains(inv.getStack(i).getItem())) {
+                        if (dupeItems.get().contains(inv.getItem(i).getItem())) {
                             InvUtils.swap(i, false);
                             swaps++;
                             swapped = true;
@@ -323,29 +324,29 @@ public class AutoFrameDupe extends Module {
                         }
                     }
                 }
-                if (!dupeItems.get().contains(inv.getSelectedStack().getItem()) && moves < maxInventoryMoves.get() && !swapped) {
-                    for (int i = 0; i < inv.size(); i++) {
-                        if (dupeItems.get().contains(inv.getStack(i).getItem())) {
+                if (!dupeItems.get().contains(inv.getSelectedItem().getItem()) && moves < maxInventoryMoves.get() && !swapped) {
+                    for (int i = 0; i < inv.getContainerSize(); i++) {
+                        if (dupeItems.get().contains(inv.getItem(i).getItem())) {
                             InvUtils.move().from(i).toHotbar(inv.getSelectedSlot());
                             moves++;
                             break;
                         }
                     }
                 }
-                if (dupeItems.get().contains(inv.getSelectedStack().getItem()) && placements < maxPlacements.get()) {
-                    mc.interactionManager.interactEntity(mc.player, emptyItemFrame, Hand.MAIN_HAND);
-                    ItemStack stack = mc.player.getStackInHand(Hand.MAIN_HAND).copy();
+                if (dupeItems.get().contains(inv.getSelectedItem().getItem()) && placements < maxPlacements.get()) {
+                    interactItemFrameEntity(emptyItemFrame);
+                    ItemStack stack = mc.player.getItemInHand(InteractionHand.MAIN_HAND).copy();
                     stack.setCount(stack.getCount() - 1);
                     if (stack.getCount() == 0) stack = ItemStack.EMPTY;
-                    mc.player.setStackInHand(Hand.MAIN_HAND, stack);
+                    mc.player.setItemInHand(InteractionHand.MAIN_HAND, stack);
                     dontHit.remove(emptyItemFrame);
                     placements++;
                 }
             }
 
-            for (ItemFrameEntity itemFrame: filledItemFrames) {
+            for (ItemFrame itemFrame: filledItemFrames) {
                 if (!dontHit.contains(itemFrame)) {
-                    mc.interactionManager.attackEntity(mc.player, itemFrame);
+                    mc.gameMode.attack(mc.player, itemFrame);
                     dontHit.add(itemFrame);
                 }
             }
@@ -353,13 +354,13 @@ public class AutoFrameDupe extends Module {
 
         else if (mode.get() == Mode.Fast) {
 
-            List<ItemFrameEntity> itemFrames = new ArrayList<>();
-            for (Entity entity: mc.world.getEntities()) {
-                if (entity instanceof ItemFrameEntity itemFrame) {
-                    if (itemFrame.squaredDistanceTo(mc.player) < 25) {
-                        if (itemFrame.getHeldItemStack().getItem() == Items.AIR)
+            List<ItemFrame> itemFrames = new ArrayList<>();
+            for (Entity entity: mc.level.entitiesForRendering()) {
+                if (entity instanceof ItemFrame itemFrame) {
+                    if (itemFrame.distanceToSqr(mc.player) < 25) {
+                        if (itemFrame.getItem().getItem() == Items.AIR)
                             itemFrames.add(itemFrame);
-                        else if (dupeItems.get().contains(itemFrame.getHeldItemStack().getItem()))
+                        else if (dupeItems.get().contains(itemFrame.getItem().getItem()))
                             itemFrames.add(itemFrame);
                     }
                 }
@@ -371,8 +372,8 @@ public class AutoFrameDupe extends Module {
 
 
             if (replaceItemFrames.get()) {
-                for (ItemFrameEntity itemFrame : List.copyOf(reachableItemFrames)) {
-                    if (itemFrame.squaredDistanceTo(mc.player) > 25)
+                for (ItemFrame itemFrame : List.copyOf(reachableItemFrames)) {
+                    if (itemFrame.distanceToSqr(mc.player) > 25)
                         reachableItemFrames.remove(itemFrame);
                     else if (!itemFrames.contains(itemFrame)) {
                         reachableItemFrames.remove(itemFrame);
@@ -382,26 +383,26 @@ public class AutoFrameDupe extends Module {
                 }
 
                 replaceLoop:
-                for (ItemFrameEntity itemFrame: List.copyOf(toReplace)) {
+                for (ItemFrame itemFrame: List.copyOf(toReplace)) {
 
-                    for (ItemFrameEntity existingItemFrame: itemFrames) {
-                        if (existingItemFrame.getEntityPos().equals(itemFrame.getEntityPos()) && existingItemFrame.getHorizontalFacing() == itemFrame.getHorizontalFacing()) {
+                    for (ItemFrame existingItemFrame: itemFrames) {
+                        if (existingItemFrame.position().equals(itemFrame.position()) && existingItemFrame.getDirection() == itemFrame.getDirection()) {
                             toReplace.remove(itemFrame);
                             continue replaceLoop;
                         }
                     }
 
-                    BlockPos pos = TPUtils.Vec3d2BlockPos(itemFrame.getEntityPos().subtract(itemFrame.getRotationVector().normalize()));
-                    if (inv.getStack(PlayerInventory.OFF_HAND_SLOT).getItem() instanceof ItemFrameItem) {
-                        mc.interactionManager.interactBlock(mc.player, Hand.OFF_HAND, new BlockHitResult(Vec3d.ofCenter(pos), itemFrame.getHorizontalFacing(), pos, false));
+                    BlockPos pos = TPUtils.vec3ToBlockPos(itemFrame.position().subtract(itemFrame.getLookAngle().normalize()));
+                    if (inv.getItem(Inventory.SLOT_OFFHAND).getItem() instanceof ItemFrameItem) {
+                        mc.gameMode.useItemOn(mc.player, InteractionHand.OFF_HAND, new BlockHitResult(Vec3.atCenterOf(pos), itemFrame.getDirection(), pos, false));
                         placements++;
                         continue;
                     }
 
                     boolean swapped = false;
-                    if (!(inv.getSelectedStack().getItem() instanceof ItemFrameItem)) {
+                    if (!(inv.getSelectedItem().getItem() instanceof ItemFrameItem)) {
                         for (int i = 0; i < 9; i++) {
-                            if (inv.getStack(i).getItem() instanceof ItemFrameItem) {
+                            if (inv.getItem(i).getItem() instanceof ItemFrameItem) {
                                 InvUtils.swap(i, false);
                                 swaps++;
                                 swapped = true;
@@ -409,9 +410,9 @@ public class AutoFrameDupe extends Module {
                             }
                         }
                     }
-                    if (!(inv.getSelectedStack().getItem() instanceof ItemFrameItem) && !swapped) {
-                        for (int i = 0; i < inv.size(); i++) {
-                            if (inv.getStack(i).getItem() instanceof ItemFrameItem) {
+                    if (!(inv.getSelectedItem().getItem() instanceof ItemFrameItem) && !swapped) {
+                        for (int i = 0; i < inv.getContainerSize(); i++) {
+                            if (inv.getItem(i).getItem() instanceof ItemFrameItem) {
                                 InvUtils.move().from(i).toHotbar(inv.getSelectedSlot());
                                 moves++;
                                 break;
@@ -419,12 +420,12 @@ public class AutoFrameDupe extends Module {
                         }
                     }
 
-                    if (inv.getSelectedStack().getItem() instanceof ItemFrameItem) {
-                        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, new BlockHitResult(Vec3d.ofCenter(pos), itemFrame.getHorizontalFacing(), pos, false));
-                        ItemStack stack = mc.player.getStackInHand(Hand.MAIN_HAND).copy();
+                    if (inv.getSelectedItem().getItem() instanceof ItemFrameItem) {
+                        mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, new BlockHitResult(Vec3.atCenterOf(pos), itemFrame.getDirection(), pos, false));
+                        ItemStack stack = mc.player.getItemInHand(InteractionHand.MAIN_HAND).copy();
                         stack.setCount(stack.getCount() - 1);
                         if (stack.getCount() == 0) stack = ItemStack.EMPTY;
-                        mc.player.setStackInHand(Hand.MAIN_HAND, stack);
+                        mc.player.setItemInHand(InteractionHand.MAIN_HAND, stack);
                     }
                 }
             }
@@ -433,10 +434,10 @@ public class AutoFrameDupe extends Module {
 
 
             boolean swapped = false;
-            for (ItemFrameEntity itemFrame: itemFrames) {
-                if ((!dupeItems.get().contains(inv.getSelectedStack().getItem()) || inv.getSelectedStack().getCount() < minStackSize.get()) && swaps < maxSwaps.get()) {
+            for (ItemFrame itemFrame: itemFrames) {
+                if ((!dupeItems.get().contains(inv.getSelectedItem().getItem()) || inv.getSelectedItem().getCount() < minStackSize.get()) && swaps < maxSwaps.get()) {
                     for (int i = 0; i < 9; i++) {
-                        if (dupeItems.get().contains(inv.getStack(i).getItem()) && inv.getStack(i).getCount() >= minStackSize.get()) {
+                        if (dupeItems.get().contains(inv.getItem(i).getItem()) && inv.getItem(i).getCount() >= minStackSize.get()) {
                             InvUtils.swap(i, false);
                             swapped = true;
                             swaps++;
@@ -444,9 +445,9 @@ public class AutoFrameDupe extends Module {
                         }
                     }
                 }
-                if ((!dupeItems.get().contains(inv.getSelectedStack().getItem()) || inv.getSelectedStack().getCount() < minStackSize.get()) && moves < maxInventoryMoves.get() && !swapped) {
-                    for (int i = 0; i < inv.size(); i++) {
-                        if (dupeItems.get().contains(inv.getStack(i).getItem()) && inv.getStack(i).getCount() >= minStackSize.get()) {
+                if ((!dupeItems.get().contains(inv.getSelectedItem().getItem()) || inv.getSelectedItem().getCount() < minStackSize.get()) && moves < maxInventoryMoves.get() && !swapped) {
+                    for (int i = 0; i < inv.getContainerSize(); i++) {
+                        if (dupeItems.get().contains(inv.getItem(i).getItem()) && inv.getItem(i).getCount() >= minStackSize.get()) {
                             InvUtils.move().from(i).toHotbar(inv.getSelectedSlot());
                             moves++;
                             swapped = true;
@@ -456,7 +457,7 @@ public class AutoFrameDupe extends Module {
                 }
                 if (!swapped) {
                     for (int i = 0; i < 9; i++) {
-                        if (dupeItems.get().contains(inv.getStack(i).getItem())) {
+                        if (dupeItems.get().contains(inv.getItem(i).getItem())) {
                             InvUtils.swap(i, false);
                             swapped = true;
                             swaps++;
@@ -465,8 +466,8 @@ public class AutoFrameDupe extends Module {
                     }
                 }
                 if (!swapped) {
-                    for (int i = 0; i < inv.size(); i++) {
-                        if (dupeItems.get().contains(inv.getStack(i).getItem())) {
+                    for (int i = 0; i < inv.getContainerSize(); i++) {
+                        if (dupeItems.get().contains(inv.getItem(i).getItem())) {
                             InvUtils.move().from(i).toHotbar(inv.getSelectedSlot());
                             moves++;
                             swapped = true;
@@ -475,17 +476,17 @@ public class AutoFrameDupe extends Module {
                     }
                 }
 
-                if (dupeItems.get().contains(inv.getSelectedStack().getItem()) && itemFrame.getHeldItemStack().getItem() == Items.AIR && placements < maxPlacements.get()) {
+                if (dupeItems.get().contains(inv.getSelectedItem().getItem()) && itemFrame.getItem().getItem() == Items.AIR && placements < maxPlacements.get()) {
                     interactItemFrame(itemFrame);
                     dontHit.remove(itemFrame);
                     placements++;
                     continue;
                 }
 
-                if (!dontHit.contains(itemFrame) && dupeItems.get().contains(itemFrame.getHeldItemStack().getItem()) && placements < maxPlacements.get()) {
+                if (!dontHit.contains(itemFrame) && dupeItems.get().contains(itemFrame.getItem().getItem()) && placements < maxPlacements.get()) {
                     dontHit.add(itemFrame);
-                    mc.interactionManager.attackEntity(mc.player, itemFrame);
-                    if (dupeItems.get().contains(inv.getSelectedStack().getItem())) {
+                    mc.gameMode.attack(mc.player, itemFrame);
+                    if (dupeItems.get().contains(inv.getSelectedItem().getItem())) {
                         interactItemFrame(itemFrame);
                         dontHit.remove(itemFrame);
                         placements++;
@@ -495,31 +496,49 @@ public class AutoFrameDupe extends Module {
         }
     }
 
-    private void interactItemFrame(ItemFrameEntity itemFrame) {
-        mc.interactionManager.interactEntity(mc.player, itemFrame, Hand.MAIN_HAND);
-        ItemStack stack = mc.player.getStackInHand(Hand.MAIN_HAND).copy();
+    private void interactItemFrame(ItemFrame itemFrame) {
+        interactItemFrameEntity(itemFrame);
+        ItemStack stack = mc.player.getItemInHand(InteractionHand.MAIN_HAND).copy();
         stack.setCount(stack.getCount() - 1);
         if (stack.getCount() == 0) stack = ItemStack.EMPTY;
-        mc.player.setStackInHand(Hand.MAIN_HAND, stack);
+        mc.player.setItemInHand(InteractionHand.MAIN_HAND, stack);
+    }
+
+    private void interactItemFrameEntity(ItemFrame itemFrame) {
+        mc.gameMode.interact(
+            mc.player,
+            itemFrame,
+            new EntityHitResult(itemFrame, itemFrame.getBoundingBox().getCenter()),
+            InteractionHand.MAIN_HAND
+        );
+    }
+
+    private int countInventoryItem(Inventory inv, Item item) {
+        int count = 0;
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (stack.getItem() == item) count += stack.getCount();
+        }
+        return count;
     }
 
     @EventHandler
     private void onRender(Render3DEvent event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
 
-        for (Entity entity : mc.world.getEntities()) {
-            if (entity instanceof ItemFrameEntity itemFrame) {
-                if (renderPlace.get() && itemFrame.getHeldItemStack().getItem() == Items.AIR) {
+        for (Entity entity : mc.level.entitiesForRendering()) {
+            if (entity instanceof ItemFrame itemFrame) {
+                if (renderPlace.get() && itemFrame.getItem().getItem() == Items.AIR) {
                     renderItemFrame(event.renderer, itemFrame, emptyColor.get());
-                } else if (renderDrop.get() && dupeItems.get().contains(itemFrame.getHeldItemStack().getItem())) {
+                } else if (renderDrop.get() && dupeItems.get().contains(itemFrame.getItem().getItem())) {
                     renderItemFrame(event.renderer, itemFrame, filledColor.get());
                 }
             }
         }
     }
 
-    private void renderItemFrame(Renderer3D renderer, ItemFrameEntity itemFrame, Color color) {
-        Vec3d pos = itemFrame.getEntityPos();
+    private void renderItemFrame(Renderer3D renderer, ItemFrame itemFrame, Color color) {
+        Vec3 pos = itemFrame.position();
         renderer.boxSides(pos.x-0.25, pos.y-0.25, pos.z-0.25, pos.x+0.25, pos.y+0.25, pos.z+0.25, color, 0);
     }
 

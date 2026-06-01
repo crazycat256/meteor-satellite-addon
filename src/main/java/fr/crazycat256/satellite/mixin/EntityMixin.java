@@ -9,8 +9,8 @@ import fr.crazycat256.satellite.modules.EventlessFly;
 import fr.crazycat256.satellite.modules.VecFly;
 import fr.crazycat256.satellite.utils.MathUtils;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import net.minecraft.entity.Entity;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.util.Mth;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -25,7 +25,7 @@ public abstract class EntityMixin {
         if (Modules.get().get(VecFly.class).isActive()) info.setReturnValue(false);
     }
 
-    @Inject(method = "changeLookDirection", at = @At("HEAD"))
+    @Inject(method = "turn", at = @At("HEAD"))
     private void onChangeLookDirection(double cursorDeltaX, double cursorDeltaY, CallbackInfo ci) {
         EventlessFly eventlessFly = Modules.get().get(EventlessFly.class);
 
@@ -33,8 +33,7 @@ public abstract class EntityMixin {
             eventlessFly.cameraYaw += (float) (cursorDeltaX / 8);
             eventlessFly.cameraYaw = (float) MathUtils.mod(eventlessFly.cameraYaw + 180, 360) - 180;
             eventlessFly.cameraPitch += (float) (cursorDeltaY / 8);
-            eventlessFly.cameraPitch = MathHelper.clamp(eventlessFly.cameraPitch, -90, 90);
+            eventlessFly.cameraPitch = Mth.clamp(eventlessFly.cameraPitch, -90, 90);
         }
     }
 }
-

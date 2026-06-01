@@ -5,13 +5,14 @@
 
 package fr.crazycat256.satellite.utils;
 
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.util.PlayerInput;
-import net.minecraft.util.math.*;
-import net.minecraft.util.shape.VoxelShape;
-import java.lang.Math;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.protocol.game.ServerboundPlayerInputPacket;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,11 +29,11 @@ public class TPUtils {
      * Teleports the player to a position using the paper method
      * @see meteordevelopment.meteorclient.commands.commands.VClipCommand
      */
-    public static void PaperTP(Vec3d startPos, Vec3d pos)  {
+    public static void PaperTP(Vec3 startPos, Vec3 pos)  {
 
-        if (mc.player.isSneaking()) {
-            PlayerInput lastInput = mc.player.getLastPlayerInput();
-            PlayerInput input = new PlayerInput(
+        if (mc.player.isShiftKeyDown()) {
+            Input lastInput = mc.player.getLastSentInput();
+            Input input = new Input(
                 lastInput.forward(),
                 lastInput.backward(),
                 lastInput.left(),
@@ -41,60 +42,60 @@ public class TPUtils {
                 false,
                 lastInput.sprint()
             );
-            mc.player.networkHandler.sendPacket(new PlayerInputC2SPacket(input));
+            mc.player.connection.send(new ServerboundPlayerInputPacket(input));
         }
 
         double distance = startPos.distanceTo(pos);
 
         int packetsRequired = (int) Math.ceil(Math.abs(distance / 10));
         for (int packetNumber = 0; packetNumber < (packetsRequired - 1); packetNumber++) {
-            mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(true, mc.player.horizontalCollision));
+            mc.player.connection.send(new ServerboundMovePlayerPacket.StatusOnly(true, mc.player.horizontalCollision));
         }
 
-        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(pos.x, pos.y, pos.z, true, mc.player.horizontalCollision));
+        mc.player.connection.send(new ServerboundMovePlayerPacket.Pos(pos.x, pos.y, pos.z, true, mc.player.horizontalCollision));
     }
-    public static void PaperTP(Vec3d pos) {
-        PaperTP(mc.player.getEntityPos(), pos);
+    public static void PaperTP(Vec3 pos) {
+        PaperTP(mc.player.position(), pos);
     }
 
-    public static BlockPos Vec3d2BlockPos(Vec3d pos) {
+    public static BlockPos vec3ToBlockPos(Vec3 pos) {
         return new BlockPos((int) floor(pos.x), (int) floor(pos.y), (int) floor(pos.z));
     }
-    public static ArrayList<Vec3d> findTPPath(Vec3d pos, double maxDistance) {
-        return findTPPath(mc.player.getEntityPos(), pos, 10, maxDistance, 8);
+    public static ArrayList<Vec3> findTPPath(Vec3 pos, double maxDistance) {
+        return findTPPath(mc.player.position(), pos, 10, maxDistance, 8);
     }
 
-    public static ArrayList<Vec3d> findTPPath(Vec3d startPos, Vec3d newPos, int maxSteps, double maxDistance, double accuracy) {
+    public static ArrayList<Vec3> findTPPath(Vec3 startPos, Vec3 newPos, int maxSteps, double maxDistance, double accuracy) {
         final double maxSquaredDistance = maxDistance * maxDistance;
         final List<Direction> directions = new ArrayList<>(Arrays.stream(Direction.values()).toList());
         directions.sort((d1, d2) -> {
-            double d1Dist = newPos.distanceTo(startPos.offset(d1, 10));
-            double d2Dist = newPos.distanceTo(startPos.offset(d2, 10));
+            double d1Dist = newPos.distanceTo(startPos.relative(d1, 10));
+            double d2Dist = newPos.distanceTo(startPos.relative(d2, 10));
             return Double.compare(d1Dist, d2Dist);
         });
 
-        ArrayList<Vec3d> positions = new ArrayList<>();
+        ArrayList<Vec3> positions = new ArrayList<>();
 
 
         for (int h = 0; h < maxSteps; h++) {
-            double closestPosSquaredDistance = positions.isEmpty() ? Integer.MAX_VALUE : (positions.getLast().squaredDistanceTo(newPos) + 100);
-            Vec3d currentPos = positions.isEmpty() ? startPos : positions.getLast();
+            double closestPosSquaredDistance = positions.isEmpty() ? Integer.MAX_VALUE : (positions.getLast().distanceToSqr(newPos) + 100);
+            Vec3 currentPos = positions.isEmpty() ? startPos : positions.getLast();
             double currentPosDistance = currentPos.distanceTo(newPos);
-            Vec3d roundCurrentPos = new Vec3d(Math.floor(currentPos.x) + 0.5, Math.floor(currentPos.y), Math.floor(currentPos.z) + 0.5);
-            Vec3d closestPos = null;
+            Vec3 roundCurrentPos = new Vec3(Math.floor(currentPos.x) + 0.5, Math.floor(currentPos.y), Math.floor(currentPos.z) + 0.5);
+            Vec3 closestPos = null;
 
-            Vec3d potentialPos;
-            if (currentPos.squaredDistanceTo(newPos) <= 100) {
+            Vec3 potentialPos;
+            if (currentPos.distanceToSqr(newPos) <= 100) {
                 potentialPos = newPos;
             } else {
-                potentialPos = currentPos.add(newPos.subtract(currentPos).normalize().multiply(10));
+                potentialPos = currentPos.add(newPos.subtract(currentPos).normalize().scale(10));
                 if (positions.contains(potentialPos)) {
                     return null;
                 }
             }
             if (isTPValid(currentPos, potentialPos)) {
                 positions.add(potentialPos);
-                if (potentialPos.squaredDistanceTo(newPos) <= maxSquaredDistance) {
+                if (potentialPos.distanceToSqr(newPos) <= maxSquaredDistance) {
                     return positions;
                 }
             }
@@ -106,8 +107,8 @@ public class TPUtils {
                     for (int j = maxJ; j >= -maxJ; j--) {
                         int maxK = (int) Math.sqrt(100 - i * i - j * j);
                         for (int k = maxK; k >= -maxK; k--) {
-                            potentialPos = roundCurrentPos.offset(directions.get(0), i).offset(directions.get(1), j).offset(directions.get(2), k);
-                            double potentialPosSquaredDistance = potentialPos.squaredDistanceTo(newPos);
+                            potentialPos = roundCurrentPos.relative(directions.get(0), i).relative(directions.get(1), j).relative(directions.get(2), k);
+                            double potentialPosSquaredDistance = potentialPos.distanceToSqr(newPos);
                             if (potentialPosSquaredDistance < closestPosSquaredDistance && isTPValid(currentPos, potentialPos)) {
                                 if (potentialPosSquaredDistance <= maxSquaredDistance) {
                                     positions.add(potentialPos);
@@ -139,12 +140,12 @@ public class TPUtils {
      * @param pos The position to check
      * @return true if the position is obstructed
      */
-    public static boolean isObstructed(Vec3d pos) {
-        Box box = mc.player.getBoundingBox().offset(mc.player.getEntityPos().negate()).offset(pos);
-        box = box.expand(-0.0001, -0.0001, -0.0001);
+    public static boolean isObstructed(Vec3 pos) {
+        AABB box = mc.player.getBoundingBox().move(mc.player.position().reverse()).move(pos);
+        box = box.inflate(-0.0001, -0.0001, -0.0001);
 
         // Using a loop like this is faster than using a stream
-        for (VoxelShape v: mc.world.getBlockCollisions(mc.player, box)) {
+        for (VoxelShape v: mc.level.getBlockCollisions(mc.player, box)) {
             return true;
         }
         return false;
@@ -155,8 +156,8 @@ public class TPUtils {
      * @param startPos The position of the player before the teleport
      * @param endPos The position of the player after the teleport
      */
-    public static boolean isTPValid(Vec3d startPos, Vec3d endPos) {
-        return startPos.squaredDistanceTo(endPos) < 100.0000000000001 && !isObstructed(endPos) && !isWrongMove(startPos, endPos);
+    public static boolean isTPValid(Vec3 startPos, Vec3 endPos) {
+        return startPos.distanceToSqr(endPos) < 100.0000000000001 && !isObstructed(endPos) && !isWrongMove(startPos, endPos);
     }
 
     /**
@@ -165,11 +166,10 @@ public class TPUtils {
      * @param endPos The position of the player after the move
      * @return true if the move is wrong
      */
-    public static boolean isWrongMove(Vec3d startPos, Vec3d endPos) {
+    public static boolean isWrongMove(Vec3 startPos, Vec3 endPos) {
         return ServerUtils.getSquaredMovementDelta(startPos, endPos) > movedWronglyThreshold;
     }
 
 
 }
-
 

@@ -11,11 +11,11 @@ import fr.crazycat256.satellite.utils.NBTUtils;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
-import net.minecraft.component.ComponentChanges;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
+import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.NbtOps;
 import org.lwjgl.glfw.GLFW;
 
@@ -70,13 +70,13 @@ public class NBTTooltip extends Module {
     public String getTooltip(ItemStack stack, Item.TooltipContext ctx) {
 
         if (isActive() && (!onlyOnKey.get() || displayKey.get().isPressed())) {
-            DataResult<NbtElement> result = ComponentChanges.CODEC.encodeStart(ctx.getRegistryLookup().getOps(NbtOps.INSTANCE), stack.getComponentChanges());
+            DataResult<Tag> result = DataComponentPatch.CODEC.encodeStart(ctx.registries().createSerializationContext(NbtOps.INSTANCE), stack.getComponentsPatch());
             result.ifError(e->{});
-            NbtElement nbtElement = result.getOrThrow();
-            NbtCompound compound = (NbtCompound) nbtElement;
+            Tag nbtElement = result.getOrThrow();
+            CompoundTag compound = (CompoundTag) nbtElement;
 
             if (copyKey.get().isPressed()) {
-                mc.keyboard.setClipboard(NBTUtils.formatNBT(compound, indentationLevel.get(), false));
+                mc.keyboardHandler.setClipboard(NBTUtils.formatNBT(compound, indentationLevel.get(), false));
             }
 
             return NBTUtils.formatNBT(compound, indentationLevel.get(), color.get());

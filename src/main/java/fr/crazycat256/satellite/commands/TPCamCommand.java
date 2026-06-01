@@ -9,8 +9,8 @@ package fr.crazycat256.satellite.commands;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import fr.crazycat256.satellite.utils.TPUtils;
 import meteordevelopment.meteorclient.commands.Command;
-import net.minecraft.command.CommandSource;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.multiplayer.ClientSuggestionProvider;
+import net.minecraft.world.phys.Vec3;
 
 public class TPCamCommand extends Command {
     public TPCamCommand() {
@@ -18,16 +18,16 @@ public class TPCamCommand extends Command {
     }
 
     @Override
-    public void build(LiteralArgumentBuilder<CommandSource> builder) {
+    public void build(LiteralArgumentBuilder<ClientSuggestionProvider> builder) {
 
         builder.executes(context -> {
             if (mc.getCameraEntity() == null) {
                 error("Camera entity doesn't exist.");
                 return 0;
             }
-            Vec3d pos = mc.gameRenderer.getCamera().getCameraPos();
+            Vec3 pos = mc.gameRenderer.getMainCamera().position();
             TPUtils.PaperTP(pos);
-            mc.player.updatePosition(pos.x, pos.y, pos.z);
+            mc.player.setPos(pos.x, pos.y, pos.z);
             return SINGLE_SUCCESS;
         });
     }

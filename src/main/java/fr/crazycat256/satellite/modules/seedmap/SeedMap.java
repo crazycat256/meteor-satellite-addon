@@ -20,7 +20,7 @@ import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.util.Util;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -107,10 +107,10 @@ public class SeedMap extends Module {
         WHorizontalList b = list.add(theme.horizontalList()).expandX().widget();
 
         WButton copyScript = b.add(theme.button("Copy script")).expandX().widget();
-        copyScript.action = () -> mc.keyboard.setClipboard(String.format(script, serverPort.get()));
+        copyScript.action = () -> mc.keyboardHandler.setClipboard(String.format(script, serverPort.get()));
 
         WButton site = list.add(theme.button("Open Seed Map")).expandX().widget();
-        site.action = () -> Util.getOperatingSystem().open("https://www.chunkbase.com/apps/seed-map");
+        site.action = () -> Util.getPlatform().openUri("https://www.chunkbase.com/apps/seed-map");
 
         return list;
     }
@@ -134,13 +134,13 @@ public class SeedMap extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (webSocket == null || mc.player == null || mc.world == null) return;
+        if (webSocket == null || mc.player == null || mc.level == null) return;
 
-        Vec3d pos = mc.player.getEntityPos();
+        Vec3 pos = mc.player.position();
         int x = (int) pos.x;
         int z = (int) pos.z;
 
-        String dimension = mc.world.getRegistryKey().getValue().toString();
+        String dimension = mc.level.dimension().identifier().toString();
 
         for (String dim: new String[]{"overworld", "nether", "end"}) {
             if (dimension.contains(dim)) {

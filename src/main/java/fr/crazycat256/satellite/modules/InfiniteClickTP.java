@@ -16,11 +16,11 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.ClipContext;
 
 import java.util.ArrayList;
 
@@ -124,8 +124,8 @@ public class InfiniteClickTP extends Module {
 
     private boolean cancel;
     private long lastTP;
-    private final ArrayList<Vec3d> positions = new ArrayList<>();
-    private final BlockPos.Mutable blockPos = new BlockPos.Mutable();
+    private final ArrayList<Vec3> positions = new ArrayList<>();
+    private final BlockPos.MutableBlockPos blockPos = new BlockPos.MutableBlockPos();
     private boolean wrongMove = true;
 
     public InfiniteClickTP() {
@@ -140,29 +140,29 @@ public class InfiniteClickTP extends Module {
 
     @EventHandler
     private void onPreTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
 
-        if (mc.options.sneakKey.isPressed() || !onlyIfSneaking.get()) {
+        if (mc.options.keyShift.isDown() || !onlyIfSneaking.get()) {
 
-            RaycastContext context = new RaycastContext(mc.player.getEyePos(), mc.player.getEyePos().add(mc.player.getRotationVector().multiply(maxDistance.get())), RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.ANY, mc.player);
-            blockPos.set(mc.world.raycast(context).getBlockPos());
+            ClipContext context = new ClipContext(mc.player.getEyePosition(), mc.player.getEyePosition().add(mc.player.getLookAngle().scale(maxDistance.get())), ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY, mc.player);
+            blockPos.set(mc.level.clip(context).getBlockPos());
 
-            Box box = mc.player.getBoundingBox().offset(mc.player.getEntityPos().negate()).offset(0, 1, 0);
+            AABB box = mc.player.getBoundingBox().move(mc.player.position().reverse()).move(0, 1, 0);
 
-            while (!Streams.stream(mc.world.getBlockCollisions(mc.player, box.offset(Vec3d.ofBottomCenter(blockPos)))).toList().isEmpty()) {
-                blockPos.set(blockPos.up());
+            while (!Streams.stream(mc.level.getBlockCollisions(mc.player, box.move(Vec3.atBottomCenterOf(blockPos)))).toList().isEmpty()) {
+                blockPos.set(blockPos.above());
             }
 
-            Vec3d tpPos = Vec3d.ofBottomCenter(blockPos).add(0, 1, 0);
-            Vec3d tpVec = tpPos.subtract(mc.player.getEntityPos());
+            Vec3 tpPos = Vec3.atBottomCenterOf(blockPos).add(0, 1, 0);
+            Vec3 tpVec = tpPos.subtract(mc.player.position());
 
             wrongMove = false;
             if (mode.get() == Mode.Paper) {
-                wrongMove = mc.player.getEntityPos().squaredDistanceTo(tpPos) > 40_000 || TPUtils.isWrongMove(mc.player.getEntityPos(), tpPos);
+                wrongMove = mc.player.position().distanceToSqr(tpPos) > 40_000 || TPUtils.isWrongMove(mc.player.position(), tpPos);
             } else if (mode.get() == Mode.Straight){
-                Vec3d tempPos = mc.player.getEntityPos();
+                Vec3 tempPos = mc.player.position();
                 for (int i = 10; i < tpVec.length(); i += 10) {
-                    Vec3d tempPos2 = tempPos.add(tpVec.normalize().multiply(10));
+                    Vec3 tempPos2 = tempPos.add(tpVec.normalize().scale(10));
                     if (!TPUtils.isTPValid(tempPos, tempPos2)) {
                         wrongMove = true;
                         break;
@@ -173,11 +173,11 @@ public class InfiniteClickTP extends Module {
             if (mode.get() != Mode.Pathfinder && preventWrongMoves.get() && wrongMove) return;
 
 
-            if (mc.options.useKey.isPressed() && !cancel) {
+            if (mc.options.keyUse.isDown() && !cancel) {
 
 
                 positions.clear();
-                positions.add(mc.player.getEntityPos());
+                positions.add(mc.player.position());
 
                 switch (mode.get()) {
 
@@ -188,40 +188,40 @@ public class InfiniteClickTP extends Module {
 
                     case Straight -> {
                         for (int i = 10; i < tpVec.length(); i += 10) {
-                            Vec3d vec = mc.player.getEntityPos().add(tpVec.normalize().multiply(i));
-                            mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(vec.x, vec.y, vec.z, true, mc.player.horizontalCollision));
+                            Vec3 vec = mc.player.position().add(tpVec.normalize().scale(i));
+                            mc.player.connection.send(new ServerboundMovePlayerPacket.Pos(vec.x, vec.y, vec.z, true, mc.player.horizontalCollision));
                             positions.add(vec);
                         }
-                        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(tpPos.x, tpPos.y, tpPos.z, true, mc.player.horizontalCollision));
+                        mc.player.connection.send(new ServerboundMovePlayerPacket.Pos(tpPos.x, tpPos.y, tpPos.z, true, mc.player.horizontalCollision));
                         positions.add(tpPos);
                     }
 
                     case Pathfinder -> {
-                        ArrayList<Vec3d> steps = TPUtils.findTPPath(mc.player.getEntityPos(), tpPos, 20, 0, 9);
+                        ArrayList<Vec3> steps = TPUtils.findTPPath(mc.player.position(), tpPos, 20, 0, 9);
                         if (steps != null) {
                             positions.addAll(steps);
-                            for (Vec3d vec : steps) {
-                                mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(vec.x, vec.y, vec.z, true, mc.player.horizontalCollision));
+                            for (Vec3 vec : steps) {
+                                mc.player.connection.send(new ServerboundMovePlayerPacket.Pos(vec.x, vec.y, vec.z, true, mc.player.horizontalCollision));
                             }
-                            mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(tpPos.x, tpPos.y, tpPos.z, true, mc.player.horizontalCollision));
+                            mc.player.connection.send(new ServerboundMovePlayerPacket.Pos(tpPos.x, tpPos.y, tpPos.z, true, mc.player.horizontalCollision));
                         }
                     }
                 }
-                mc.player.updatePosition(tpPos.x, tpPos.y, tpPos.z);
-                mc.player.setVelocity(0, 0, 0);
+                mc.player.setPos(tpPos.x, tpPos.y, tpPos.z);
+                mc.player.setDeltaMovement(0, 0, 0);
 
                 cancel = true;
                 lastTP = System.currentTimeMillis();
             }
         }
-        if (!mc.options.useKey.isPressed()) {
+        if (!mc.options.keyUse.isDown()) {
             cancel = false;
         }
     }
 
     @EventHandler
     private void onRender(Render3DEvent event) {
-        if ((mc.options.sneakKey.isPressed() || !onlyIfSneaking.get()) && showBlock.get()) {
+        if ((mc.options.keyShift.isDown() || !onlyIfSneaking.get()) && showBlock.get()) {
             Color color;
             if (mode.get() != Mode.Pathfinder && wrongMove && preventWrongMoves.get()) {
                 color = wrongBlockColor.get();
@@ -244,13 +244,13 @@ public class InfiniteClickTP extends Module {
 
         if (showTrail.get()) {
             for (int i = 0; i < positions.size() - 1; i++) {
-                Vec3d p1 = positions.get(i);
-                Vec3d p2 = positions.get(i+1);
+                Vec3 p1 = positions.get(i);
+                Vec3 p2 = positions.get(i+1);
                 event.renderer.line(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, trailColor.get());
             }
         }
         if (showSteps.get()) {
-            for (Vec3d vec : positions) {
+            for (Vec3 vec : positions) {
                 event.renderer.box(vec.x - 0.375, vec.y, vec.z - 0.375, vec.x + 0.375, vec.y + 2, vec.z + 0.375, stepColor.get(), stepColor.get(), ShapeMode.Sides, 0);
             }
         }

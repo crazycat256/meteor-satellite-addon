@@ -14,9 +14,9 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.world.phys.Vec3;
 
 public class KnockbackTweaks extends Module {
 
@@ -104,24 +104,24 @@ public class KnockbackTweaks extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
         if (shouldResendLookPacket) {
             shouldResendLookPacket = false;
-            mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(mc.player.getYaw(), mc.player.getPitch(), mc.player.isOnGround(), mc.player.horizontalCollision));
+            mc.player.connection.send(new ServerboundMovePlayerPacket.Rot(mc.player.getYRot(), mc.player.getXRot(), mc.player.onGround(), mc.player.horizontalCollision));
         }
         if (shouldResendSprintPacket) {
             shouldResendSprintPacket = false;
-            mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.START_SPRINTING));
+            mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.START_SPRINTING));
         }
     }
 
     @EventHandler
     private void onEntityAttack(AttackEntityEvent event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
         if (fakeSprint.get()) {
             if (mc.player.isSprinting())
-                mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.STOP_SPRINTING));
-            mc.player.networkHandler.sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.START_SPRINTING));
+                mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.STOP_SPRINTING));
+            mc.player.connection.send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.START_SPRINTING));
             if (mc.player.isSprinting()) shouldResendSprintPacket = true;
         }
 
@@ -129,11 +129,11 @@ public class KnockbackTweaks extends Module {
         if (mode.get() == Mode.Absolute) {
             yaw = direction.get();
         } else if (mode.get() == Mode.RelativeToView) {
-            yaw = direction.get() + mc.player.getYaw();
+            yaw = direction.get() + mc.player.getYRot();
         } else if (mode.get() == Mode.RelativeToPlayer) {
-            Vec3d playerPos = mc.player.getEntityPos();
-            Vec3d entityPos = event.entity.getEntityPos();
-            Vec3d diff = entityPos.subtract(playerPos);
+            Vec3 playerPos = mc.player.position();
+            Vec3 entityPos = event.entity.position();
+            Vec3 diff = entityPos.subtract(playerPos);
 
             yaw = (float) Math.toDegrees(Math.atan2(diff.z, diff.x)) - 90 + direction.get();
 
@@ -145,28 +145,28 @@ public class KnockbackTweaks extends Module {
             int range = randomRange.get() * 2 + 1;
             yaw += (float) (Math.random() * range - randomRange.get());
         }
-        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(yaw, mc.player.getPitch(), mc.player.isOnGround(), mc.player.horizontalCollision));
+        mc.player.connection.send(new ServerboundMovePlayerPacket.Rot(yaw, mc.player.getXRot(), mc.player.onGround(), mc.player.horizontalCollision));
         shouldResendLookPacket = true;
     }
 
 
     @EventHandler
     private void onRender(Render3DEvent event) {
-        if (mc.player == null || mc.world == null || mc.getCameraEntity() == null || !renderDirection.get()) return;
+        if (mc.player == null || mc.level == null || mc.getCameraEntity() == null || !renderDirection.get()) return;
 
-        float yawMin = (mode.get() == Mode.Absolute ? mc.player.getYaw() - direction.get() : -direction.get()) - randomRange.get();
+        float yawMin = (mode.get() == Mode.Absolute ? mc.player.getYRot() - direction.get() : -direction.get()) - randomRange.get();
         float yawMax = yawMin + 2 * randomRange.get();
 
-        Vec3d rotation = mc.player.getRotationVector().multiply(1, 0, 1);
+        Vec3 rotation = mc.player.getLookAngle().multiply(1, 0, 1);
 
-        Vec3d lookPos = mc.player.getEntityPos().add(new Vec3d(
-            (mc.player.getX() - mc.player.lastX) * event.tickDelta + mc.player.lastX - mc.player.getX(),
-            (mc.player.getY() - mc.player.lastY) * event.tickDelta + mc.player.lastY - mc.player.getY(),
-            (mc.player.getZ() - mc.player.lastZ) * event.tickDelta + mc.player.lastZ - mc.player.getZ()
-        )).add(rotation.multiply(distance.get()));
+        Vec3 lookPos = mc.player.position().add(new Vec3(
+            (mc.player.getX() - mc.player.xo) * event.tickDelta + mc.player.xo - mc.player.getX(),
+            (mc.player.getY() - mc.player.yo) * event.tickDelta + mc.player.yo - mc.player.getY(),
+            (mc.player.getZ() - mc.player.zo) * event.tickDelta + mc.player.zo - mc.player.getZ()
+        )).add(rotation.scale(distance.get()));
 
-        Vec3d kbRangeMin = lookPos.add(rotation.normalize().multiply(radius.get(), 0, radius.get()).rotateY((float) Math.toRadians(yawMin)));
-        Vec3d kbRangeMax = lookPos.add(rotation.normalize().multiply(radius.get(), 0, radius.get()).rotateY((float) Math.toRadians(yawMax)));
+        Vec3 kbRangeMin = lookPos.add(rotation.normalize().multiply(radius.get(), 0, radius.get()).yRot((float) Math.toRadians(yawMin)));
+        Vec3 kbRangeMax = lookPos.add(rotation.normalize().multiply(radius.get(), 0, radius.get()).yRot((float) Math.toRadians(yawMax)));
 
         event.renderer.sideHorizontal(
             lookPos.x-0.25, lookPos.y, lookPos.z-0.25, lookPos.x+0.25, lookPos.z+0.25,
@@ -177,9 +177,9 @@ public class KnockbackTweaks extends Module {
         event.renderer.line(lookPos.x, lookPos.y, lookPos.z, kbRangeMax.x, kbRangeMax.y, kbRangeMax.z, lineColor.get());
 
         if (randomRange.get() != 0) {
-            Vec3d lastPoint = null;
+            Vec3 lastPoint = null;
             for (float yaw = yawMin; yaw < yawMax; yaw++) {
-                Vec3d currentPoint = lookPos.add(rotation.normalize().multiply(radius.get(), 0, radius.get()).rotateY((float) Math.toRadians(yaw)));
+                Vec3 currentPoint = lookPos.add(rotation.normalize().multiply(radius.get(), 0, radius.get()).yRot((float) Math.toRadians(yaw)));
                 if (lastPoint != null)
                     event.renderer.line(lastPoint.x, lastPoint.y, lastPoint.z, currentPoint.x, currentPoint.y, currentPoint.z, lineColor.get());
                 lastPoint = currentPoint;

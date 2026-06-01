@@ -12,8 +12,8 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.world.phys.Vec3;
 
 public class EventlessFly extends Module{
 
@@ -100,33 +100,33 @@ public class EventlessFly extends Module{
 
     @Override
     public void onActivate() {
-        startYaw = mc.player.getYaw();
-        startPitch = mc.player.getPitch();
-        cameraYaw = mc.player.getYaw();
-        cameraPitch = mc.player.getPitch();
+        startYaw = mc.player.getYRot();
+        startPitch = mc.player.getXRot();
+        cameraYaw = mc.player.getYRot();
+        cameraPitch = mc.player.getXRot();
     }
     @Override
     public void onDeactivate() {
         if (cancelRotations.get() && resetRotationOnDisable.get()) {
-            mc.player.setYaw(startYaw);
-            mc.player.setPitch(startPitch);
+            mc.player.setYRot(startYaw);
+            mc.player.setXRot(startPitch);
         } else if (!cancelRotations.get()){
-            mc.player.setYaw(cameraYaw);
-            mc.player.setPitch(cameraPitch);
-            mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(cameraYaw, cameraPitch, mc.player.isOnGround(), mc.player.horizontalCollision));
+            mc.player.setYRot(cameraYaw);
+            mc.player.setXRot(cameraPitch);
+            mc.player.connection.send(new ServerboundMovePlayerPacket.Rot(cameraYaw, cameraPitch, mc.player.onGround(), mc.player.horizontalCollision));
         }
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
 
         ticks++;
 
         if (cancelRotations.get()) {
             Rotations.rotate(startYaw, startPitch);
-            mc.player.setYaw(cameraYaw);
-            mc.player.setPitch(cameraPitch);
+            mc.player.setYRot(cameraYaw);
+            mc.player.setXRot(cameraPitch);
         }
 
         if (!ServerUtils.noBlocksAround(mc.player)) {
@@ -151,51 +151,51 @@ public class EventlessFly extends Module{
         } else if (shouldFlyUp && antiKick.get() && flyUp.get()) {
             y = 1;
         } else {
-            Vec3d dir = Vec3d.fromPolar(0, mc.player.getYaw()).normalize();
+            Vec3 dir = Vec3.directionFromRotation(0, mc.player.getYRot()).normalize();
 
-            if (mc.options.forwardKey.isPressed()) {
+            if (mc.options.keyUp.isDown()) {
                 x += dir.x;
                 z += dir.z;
             }
-            if (mc.options.backKey.isPressed()) {
+            if (mc.options.keyDown.isDown()) {
                 x -= dir.x;
                 z -= dir.z;
             }
-            if (mc.options.rightKey.isPressed()) {
+            if (mc.options.keyRight.isDown()) {
                 x -= dir.z;
                 z += dir.x;
             }
-            if (mc.options.leftKey.isPressed()) {
+            if (mc.options.keyLeft.isDown()) {
                 x += dir.z;
                 z -= dir.x;
             }
-            if (mc.options.jumpKey.isPressed()) {
+            if (mc.options.keyJump.isDown()) {
                 y += 1;
             }
-            if (mc.options.sneakKey.isPressed()) {
+            if (mc.options.keyShift.isDown()) {
                 y -= 1;
-                mc.player.setSneaking(false);
+                mc.player.setShiftKeyDown(false);
                 ticks = 0;
             }
-            if (mc.options.sprintKey.isPressed()) {
+            if (mc.options.keySprint.isDown()) {
                 mc.player.setSprinting(false);
             }
         }
 
 
 
-        Vec3d velocity = new Vec3d(x, y, z);
+        Vec3 velocity = new Vec3(x, y, z);
 
-        if (velocity.equals(Vec3d.ZERO)) {
-            mc.player.setVelocity(0, 0, 0);
+        if (velocity.equals(Vec3.ZERO)) {
+            mc.player.setDeltaMovement(0, 0, 0);
             return;
         }
 
-        velocity = velocity.normalize().multiply(speed.get());
-        mc.player.setVelocity(velocity);
-        Vec3d endPos = mc.player.getEntityPos().add(velocity);
+        velocity = velocity.normalize().scale(speed.get());
+        mc.player.setDeltaMovement(velocity);
+        Vec3 endPos = mc.player.position().add(velocity);
 
-        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(endPos.x, endPos.y, endPos.z, mc.player.isOnGround(), mc.player.horizontalCollision));
-        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(endPos.x, -1E6, endPos.z, false, mc.player.horizontalCollision));
+        mc.player.connection.send(new ServerboundMovePlayerPacket.Pos(endPos.x, endPos.y, endPos.z, mc.player.onGround(), mc.player.horizontalCollision));
+        mc.player.connection.send(new ServerboundMovePlayerPacket.Pos(endPos.x, -1E6, endPos.z, false, mc.player.horizontalCollision));
     }
 }
