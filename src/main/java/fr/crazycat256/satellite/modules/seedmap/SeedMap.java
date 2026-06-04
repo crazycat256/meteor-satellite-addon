@@ -63,20 +63,10 @@ public class SeedMap extends Module {
         .build()
     );
 
-
-    private final String script;
-
-    private SeedMapWebSocket webSocket;
-    private int lastX = 0;
-    private int lastZ = 0;
-    private String lastDimension = null;
-
-    public SeedMap() {
-        super(Addon.CATEGORY, "seed-map", "Show dynamicly your position on Chunkbase's Seed Map");
-
-        try (InputStream inputStream = SeedMap.class.getResourceAsStream("/assets/satellite/seedmap-script.js");
-             InputStreamReader streamReader = new InputStreamReader(inputStream);
-             BufferedReader reader = new BufferedReader(streamReader)) {
+    private String getScript(String name) {
+        try (InputStream inputStream = SeedMap.class.getResourceAsStream(String.format("/assets/satellite/%s", name));
+            InputStreamReader streamReader = new InputStreamReader(inputStream);
+            BufferedReader reader = new BufferedReader(streamReader)) {
 
             StringBuilder content = new StringBuilder();
             String line;
@@ -85,11 +75,22 @@ public class SeedMap extends Module {
                 content.append(line).append("\n");
             }
 
-            script = content.toString();
-
+            return content.toString();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private final String scriptMarker = getScript("seedmap-script-marker.js");
+    private final String scriptNoMarker = getScript("seedmap-script-no-marker.js");
+
+    private SeedMapWebSocket webSocket;
+    private int lastX = 0;
+    private int lastZ = 0;
+    private String lastDimension = null;
+
+    public SeedMap() {
+        super(Addon.CATEGORY, "seed-map", "Show dynamicly your position on Chunkbase's Seed Map");
     }
 
     @Override
@@ -106,8 +107,11 @@ public class SeedMap extends Module {
 
         WHorizontalList b = list.add(theme.horizontalList()).expandX().widget();
 
-        WButton copyScript = b.add(theme.button("Copy script")).expandX().widget();
-        copyScript.action = () -> mc.keyboardHandler.setClipboard(String.format(script, serverPort.get()));
+        WButton copyScriptMarker = b.add(theme.button("Copy script (Marker)")).expandX().widget();
+        copyScriptMarker.action = () -> mc.keyboardHandler.setClipboard(String.format(scriptMarker, serverPort.get()));
+
+        WButton copyScriptNoMarker = b.add(theme.button("Copy script (No marker)")).expandX().widget();
+        copyScriptNoMarker.action = () -> mc.keyboardHandler.setClipboard(String.format(scriptNoMarker, serverPort.get()));
 
         WButton site = list.add(theme.button("Open Seed Map")).expandX().widget();
         site.action = () -> Util.getPlatform().openUri("https://www.chunkbase.com/apps/seed-map");
