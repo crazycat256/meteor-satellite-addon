@@ -51,6 +51,13 @@ public class SeedMap extends Module {
         .build()
     );
 
+    private final Setting<Boolean> displayTooltip = sgGeneral.add(new BoolSetting.Builder()
+        .name("display-tooltip")
+        .description("Display the marker tooltip on the seed map.")
+        .defaultValue(false)
+        .build()
+    );
+
     private final Setting<Boolean> debugMessages = sgGeneral.add(new BoolSetting.Builder()
         .name("debug-messages")
         .description("Show debug messages in chat.")
@@ -63,26 +70,8 @@ public class SeedMap extends Module {
         .build()
     );
 
-    private String getScript(String name) {
-        try (InputStream inputStream = SeedMap.class.getResourceAsStream(String.format("/assets/satellite/%s", name));
-            InputStreamReader streamReader = new InputStreamReader(inputStream);
-            BufferedReader reader = new BufferedReader(streamReader)) {
 
-            StringBuilder content = new StringBuilder();
-            String line;
-
-            while ((line = reader.readLine()) != null) {
-                content.append(line).append("\n");
-            }
-
-            return content.toString();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private final String scriptMarker = getScript("seedmap-script-marker.js");
-    private final String scriptNoMarker = getScript("seedmap-script-no-marker.js");
+    private final String script;
 
     private SeedMapWebSocket webSocket;
     private int lastX = 0;
@@ -91,6 +80,23 @@ public class SeedMap extends Module {
 
     public SeedMap() {
         super(Addon.CATEGORY, "seed-map", "Show dynamicly your position on Chunkbase's Seed Map");
+
+        try (InputStream inputStream = SeedMap.class.getResourceAsStream("/assets/satellite/seedmap-script.js");
+             InputStreamReader streamReader = new InputStreamReader(inputStream);
+             BufferedReader reader = new BufferedReader(streamReader)) {
+
+            StringBuilder content = new StringBuilder();
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append("\n");
+            }
+
+            script = content.toString();
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -107,11 +113,8 @@ public class SeedMap extends Module {
 
         WHorizontalList b = list.add(theme.horizontalList()).expandX().widget();
 
-        WButton copyScriptMarker = b.add(theme.button("Copy script (Marker)")).expandX().widget();
-        copyScriptMarker.action = () -> mc.keyboardHandler.setClipboard(String.format(scriptMarker, serverPort.get()));
-
-        WButton copyScriptNoMarker = b.add(theme.button("Copy script (No marker)")).expandX().widget();
-        copyScriptNoMarker.action = () -> mc.keyboardHandler.setClipboard(String.format(scriptNoMarker, serverPort.get()));
+        WButton copyScript = b.add(theme.button("Copy script")).expandX().widget();
+        copyScript.action = () -> mc.keyboardHandler.setClipboard(String.format(script, serverPort.get()));
 
         WButton site = list.add(theme.button("Open Seed Map")).expandX().widget();
         site.action = () -> Util.getPlatform().openUri("https://www.chunkbase.com/apps/seed-map");
@@ -163,6 +166,7 @@ public class SeedMap extends Module {
         }
 
         if (!packet.isEmpty()) {
+            packet.addProperty("tooltip", displayTooltip.get());
             webSocket.broadcast(packet.toString());
         }
         lastX = x;
