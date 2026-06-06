@@ -51,6 +51,13 @@ public class SeedMap extends Module {
         .build()
     );
 
+    private final Setting<Boolean> displayTooltip = sgGeneral.add(new BoolSetting.Builder()
+        .name("display-tooltip")
+        .description("Display the marker tooltip on the seed map.")
+        .defaultValue(false)
+        .build()
+    );
+
     private final Setting<Boolean> debugMessages = sgGeneral.add(new BoolSetting.Builder()
         .name("debug-messages")
         .description("Show debug messages in chat.")
@@ -159,6 +166,7 @@ public class SeedMap extends Module {
         }
 
         if (!packet.isEmpty()) {
+            packet.addProperty("tooltip", displayTooltip.get());
             webSocket.broadcast(packet.toString());
         }
         lastX = x;
