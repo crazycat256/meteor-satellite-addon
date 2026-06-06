@@ -67,6 +67,8 @@ tasks {
     }
 
     jar {
+        archiveClassifier.set("dev")
+
         from("LICENSE") {
             rename { "${it}_${inputs.properties["archivesName"]}" }
         }
@@ -83,6 +85,7 @@ tasks {
     }
 
     shadowJar {
+        archiveClassifier.set("")
         configurations = listOf(project.configurations.shadow.get())
 
         from("LICENSE") {
