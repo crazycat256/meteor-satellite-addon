@@ -35,8 +35,11 @@ jobs:
           echo "Minecraft version: $MC_VERSION"
       - name: Find Next Build Version
         id: find_build_version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAGS=$(curl -s "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" | jq -r '.[].tag_name')
+          set -euo pipefail
+          TAGS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[].tag_name')
           echo "Tags: $TAGS"
 
           MATCHING=$(echo "$TAGS" | grep -E "^${{ steps.mc_version.outputs.minecraft_version }}-[0-9]+$" || true)
