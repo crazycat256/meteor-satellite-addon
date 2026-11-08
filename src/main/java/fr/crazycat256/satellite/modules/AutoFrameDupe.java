@@ -35,7 +35,7 @@ import org.apache.commons.lang3.time.DurationFormatUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.stream.Stream;
 import java.util.List;
 
 public class AutoFrameDupe extends Module {
@@ -47,10 +47,7 @@ public class AutoFrameDupe extends Module {
     public final Setting<List<Item>> dupeItems = sgGeneral.add(new ItemListSetting.Builder()
         .name("items")
         .description("Items to dupe.")
-        .defaultValue(Arrays.asList(Items.SHULKER_BOX, Items.WHITE_SHULKER_BOX, Items.ORANGE_SHULKER_BOX, Items.MAGENTA_SHULKER_BOX,
-            Items.LIGHT_BLUE_SHULKER_BOX, Items.YELLOW_SHULKER_BOX, Items.LIME_SHULKER_BOX, Items.PINK_SHULKER_BOX,
-            Items.GRAY_SHULKER_BOX, Items.LIGHT_GRAY_SHULKER_BOX, Items.CYAN_SHULKER_BOX, Items.PURPLE_SHULKER_BOX,
-            Items.BLUE_SHULKER_BOX, Items.BROWN_SHULKER_BOX, Items.GREEN_SHULKER_BOX, Items.RED_SHULKER_BOX, Items.BLACK_SHULKER_BOX))
+        .defaultValue(Stream.concat(Stream.of(Items.SHULKER_BOX), Items.DYED_SHULKER_BOX.asList().stream()).toList())
         .build()
     );
 
@@ -265,7 +262,7 @@ public class AutoFrameDupe extends Module {
         if (mc.player == null || mc.level == null || mc.gameMode == null) return;
 
         if (chronometer.get()) {
-            mc.gui.setOverlayMessage(Component.literal("Duration: §f" + DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime, true, true)), false);
+            mc.gui.hud.setOverlayMessage(Component.literal("Duration: §f" + DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime, true, true)), false);
         }
 
         Inventory inv = mc.player.getInventory();

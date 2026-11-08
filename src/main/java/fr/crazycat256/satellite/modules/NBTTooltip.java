@@ -17,7 +17,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.NbtOps;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 public class NBTTooltip extends Module {
 
@@ -49,7 +49,7 @@ public class NBTTooltip extends Module {
     private final Setting<Keybind> displayKey = sgGeneral.add(new KeybindSetting.Builder()
         .name("display-key")
         .description("The key to press to display the nbt tooltip.")
-        .defaultValue(Keybind.fromKey(GLFW.GLFW_KEY_LEFT_CONTROL))
+        .defaultValue(Keybind.fromKey(InputConstants.KEY_LCONTROL))
         .visible(onlyOnKey::get)
         .build()
     );
@@ -57,7 +57,7 @@ public class NBTTooltip extends Module {
     private final Setting<Keybind> copyKey = sgGeneral.add(new KeybindSetting.Builder()
         .name("copy-key")
         .description("The key to press to copy the NBT into the clipboard.")
-        .defaultValue(Keybind.fromKeys(67, 2)) // Ctrl + C
+        .defaultValue(Keybind.fromKeys(InputConstants.KEY_C, InputConstants.MOD_CONTROL)) // Ctrl + C
         .build()
     );
 

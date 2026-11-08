@@ -19,7 +19,8 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.util.Util;
+import com.mojang.blaze3d.Blaze3D;
+import java.net.URI;
 import net.minecraft.world.phys.Vec3;
 
 import java.io.BufferedReader;
@@ -117,7 +118,7 @@ public class SeedMap extends Module {
         copyScript.action = () -> mc.keyboardHandler.setClipboard(String.format(script, serverPort.get()));
 
         WButton site = list.add(theme.button("Open Seed Map")).expandX().widget();
-        site.action = () -> Util.getPlatform().openUri("https://www.chunkbase.com/apps/seed-map");
+        site.action = () -> Blaze3D.openUri(URI.create("https://www.chunkbase.com/apps/seed-map"));
 
         return list;
     }
